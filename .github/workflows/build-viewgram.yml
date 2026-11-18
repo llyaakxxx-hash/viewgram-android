@@ -28,18 +28,30 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Setup Android SDK, NDK 27.2.12479018 & CMake 3.22.1
-        uses: android-actions/setup-android@v3
-
-      - name: Install required SDK components
+      - name: Install Android SDK 36, NDK 27.2.12479018 & CMake 3.22.1
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager \
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SDKMANAGER=$(find "$SDK_ROOT/cmdline-tools" -name sdkmanager -type f 2>/dev/null | head -n 1 || true)
+          if [ -z "$SDKMANAGER" ]; then
+            sudo mkdir -p "$SDK_ROOT/cmdline-tools"
+            curl -fL "https://dl.google.com/android/repository/commandlinetools-linux-15859902_latest.zip" -o /tmp/cmdtools.zip
+            sudo unzip -q /tmp/cmdtools.zip -d /tmp/cmdtools
+            sudo rm -rf "$SDK_ROOT/cmdline-tools/latest"
+            sudo mv /tmp/cmdtools/cmdline-tools "$SDK_ROOT/cmdline-tools/latest"
+            rm -rf /tmp/cmdtools /tmp/cmdtools.zip
+            SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          fi
+          sudo chown -R "$(whoami)":"$(id -gn)" "$SDK_ROOT"
+          yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses > /dev/null || true
+          "$SDKMANAGER" --sdk_root="$SDK_ROOT" \
             "build-tools;36.0.0" \
             "platforms;android-36" \
             "platform-tools" \
             "ndk;27.2.12479018" \
             "cmake;3.22.1"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "sdk.dir=$SDK_ROOT" > local.properties
 
       - name: Generate release keystore if missing
         run: |
